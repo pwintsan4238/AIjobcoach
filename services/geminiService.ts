@@ -24,7 +24,8 @@ export class InterviewSession {
       onClose: () => void;
       onSpeaking: (isSpeaking: boolean) => void;
     },
-    targetRole?: string
+    targetRole?: string,
+    openingQuestion?: string
   ) {
     try {
       // Use API Key from environment
@@ -139,17 +140,35 @@ export class InterviewSession {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE_NAME } },
           },
-          systemInstruction: targetRole 
+          systemInstruction: targetRole
             ? `${SYSTEM_INSTRUCTION}\n\nCURRENT TARGET ROLE FOCUS:\nThe candidate wants to practice specifically for the role of "${targetRole}". Warmly welcome them in Myanmar language for the ${targetRole} interview, and ask realistic, practical interview questions specifically relevant to a ${targetRole} job in Myanmar.`
             : SYSTEM_INSTRUCTION,
         },
       });
 
       this.session = await sessionPromise;
+
+      // Make the coach open with the exact question shown on screen
+      if (openingQuestion) {
+        this.sendText(
+          `Start the interview now. Your first question must be exactly this (say it in Myanmar, word for word): "${openingQuestion}"`
+        );
+      }
     } catch (err: any) {
       this.stop();
       throw err;
     }
+  }
+
+  /**
+   * Sends a text instruction to the coach during an active session.
+   */
+  sendText(text: string) {
+    if (!this.session) return;
+    this.session.sendClientContent({
+      turns: [{ role: 'user', parts: [{ text }] }],
+      turnComplete: true,
+    });
   }
 
   /**

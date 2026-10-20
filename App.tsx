@@ -254,6 +254,9 @@ const App: React.FC = () => {
   const questionIndexRef = useRef<number>(1);
 
   const selectedRole = TARGET_ROLES.find(r => r.id === selectedRoleId) || TARGET_ROLES[0];
+  // Session callbacks outlive renders, so they read the current role from a ref
+  const selectedRoleRef = useRef<RoleConfig>(selectedRole);
+  selectedRoleRef.current = selectedRole;
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -364,8 +367,8 @@ const App: React.FC = () => {
                 setCurrentQuestion({
                   text: cleanSpeech,
                   index: questionIndexRef.current,
-                  roleName: selectedRole.name,
-                  roleIcon: selectedRole.icon,
+                  roleName: selectedRoleRef.current.name,
+                  roleIcon: selectedRoleRef.current.icon,
                 });
               }
             }
@@ -397,7 +400,8 @@ const App: React.FC = () => {
             }
           }
         },
-        rolePromptName
+        rolePromptName,
+        initialQ
       );
 
       setStatus(ConnectionStatus.ACTIVE);
@@ -444,17 +448,37 @@ const App: React.FC = () => {
   };
 
   const handlePracticeQuestion = (question: string) => {
+    if (status === ConnectionStatus.IDLE) {
+      handleStart(question);
+      return;
+    }
+    if (status !== ConnectionStatus.ACTIVE || !sessionRef.current) return;
+
+    // Mid-session: ask the coach to switch to this question
+    currentAssistantTurnRef.current = '';
     setCurrentQuestion({
       text: question,
-      index: 1,
+      index: questionIndexRef.current,
       roleName: selectedRole.name,
       roleIcon: selectedRole.icon,
     });
     setQuestionPopupKey(k => k + 1);
+    sessionRef.current.sendText(
+      `The candidate wants to practice this question next. Ask it now, exactly as written, in Myanmar: "${question}"`
+    );
+  };
 
-    if (status === ConnectionStatus.IDLE) {
-      handleStart(question);
-    }
+  const handleRoleSelect = (role: RoleConfig) => {
+    setSelectedRoleId(role.id);
+    if (status !== ConnectionStatus.ACTIVE || !sessionRef.current || role.id === selectedRoleId) return;
+
+    setMessages(prev => [
+      ...prev,
+      { role: 'assistant', text: `✨ အင်တာဗျူး အခန်းကဏ္ဍကို "${role.name} (${role.myanmarName})" သို့ ပြောင်းလဲလိုက်ပါသည်။ ဤအခန်းကဏ္ဍဆိုင်ရာ မေးခွန်းများကို မေးမြန်းပါမည်။` }
+    ]);
+    sessionRef.current.sendText(
+      `The candidate has switched the target role to "${role.name} (${role.myanmarName})". From now on, ask realistic interview questions for this role in Myanmar. Briefly acknowledge the switch and ask the first question for this role.`
+    );
   };
 
   const handleAuthComplete = (user: User) => {
@@ -554,7 +578,7 @@ const App: React.FC = () => {
       </header>
 
       {/* Main Responsive Layout */}
-      <main className="flex-1 pt-18 sm:pt-22 pb-12 px-3 sm:px-6 max-w-4xl w-full mx-auto flex flex-col">
+      <main className="flex-1 pt-20 sm:pt-24 pb-12 px-3 sm:px-6 max-w-4xl w-full mx-auto flex flex-col">
         
         {/* Error Notification */}
         {errorMessage && (
@@ -732,15 +756,7 @@ const App: React.FC = () => {
                 <button
                   key={role.id}
                   type="button"
-                  onClick={() => {
-                    setSelectedRoleId(role.id);
-                    if (status === ConnectionStatus.ACTIVE) {
-                      setMessages(prev => [
-                        ...prev,
-                        { role: 'assistant', text: `✨ အင်တာဗျူး အခန်းကဏ္ဍကို "${role.name} (${role.myanmarName})" သို့ ပြောင်းလဲလိုက်ပါသည်။ ဤအခန်းကဏ္ဍဆိုင်ရာ မေးခွန်းများကို မေးမြန်းပါမည်။` }
-                      ]);
-                    }
-                  }}
+                  onClick={() => handleRoleSelect(role)}
                   className={`relative p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border text-left transition-all flex flex-col justify-between group active:scale-[0.98] ${
                     isSelected
                       ? 'border-teal-600 bg-teal-50/80 ring-2 ring-teal-500/20 shadow-xs'
