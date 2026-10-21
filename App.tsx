@@ -254,6 +254,9 @@ const App: React.FC = () => {
   const questionIndexRef = useRef<number>(1);
 
   const selectedRole = TARGET_ROLES.find(r => r.id === selectedRoleId) || TARGET_ROLES[0];
+  // Session callbacks outlive renders, so they read the current role from a ref
+  const selectedRoleRef = useRef<RoleConfig>(selectedRole);
+  selectedRoleRef.current = selectedRole;
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -364,8 +367,8 @@ const App: React.FC = () => {
                 setCurrentQuestion({
                   text: cleanSpeech,
                   index: questionIndexRef.current,
-                  roleName: selectedRole.name,
-                  roleIcon: selectedRole.icon,
+                  roleName: selectedRoleRef.current.name,
+                  roleIcon: selectedRoleRef.current.icon,
                 });
               }
             }
@@ -397,7 +400,8 @@ const App: React.FC = () => {
             }
           }
         },
-        rolePromptName
+        rolePromptName,
+        initialQ
       );
 
       setStatus(ConnectionStatus.ACTIVE);
@@ -444,17 +448,37 @@ const App: React.FC = () => {
   };
 
   const handlePracticeQuestion = (question: string) => {
+    if (status === ConnectionStatus.IDLE) {
+      handleStart(question);
+      return;
+    }
+    if (status !== ConnectionStatus.ACTIVE || !sessionRef.current) return;
+
+    // Mid-session: ask the coach to switch to this question
+    currentAssistantTurnRef.current = '';
     setCurrentQuestion({
       text: question,
-      index: 1,
+      index: questionIndexRef.current,
       roleName: selectedRole.name,
       roleIcon: selectedRole.icon,
     });
     setQuestionPopupKey(k => k + 1);
+    sessionRef.current.sendText(
+      `The candidate wants to practice this question next. Ask it now, exactly as written, in Myanmar: "${question}"`
+    );
+  };
 
-    if (status === ConnectionStatus.IDLE) {
-      handleStart(question);
-    }
+  const handleRoleSelect = (role: RoleConfig) => {
+    setSelectedRoleId(role.id);
+    if (status !== ConnectionStatus.ACTIVE || !sessionRef.current || role.id === selectedRoleId) return;
+
+    setMessages(prev => [
+      ...prev,
+      { role: 'assistant', text: `✨ အင်တာဗျူး အခန်းကဏ္ဍကို "${role.name} (${role.myanmarName})" သို့ ပြောင်းလဲလိုက်ပါသည်။ ဤအခန်းကဏ္ဍဆိုင်ရာ မေးခွန်းများကို မေးမြန်းပါမည်။` }
+    ]);
+    sessionRef.current.sendText(
+      `The candidate has switched the target role to "${role.name} (${role.myanmarName})". From now on, ask realistic interview questions for this role in Myanmar. Briefly acknowledge the switch and ask the first question for this role.`
+    );
   };
 
   const handleAuthComplete = (user: User) => {
@@ -485,7 +509,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-white flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-3 border-teal-500/20 border-t-teal-600 rounded-full animate-spin" />
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">စနစ်စစ်ဆေးနေပါသည်...</p>
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">စနစ်စစ်ဆေးနေပါသည်...</p>
         </div>
       </div>
     );
@@ -513,7 +537,7 @@ const App: React.FC = () => {
             <h1 className="text-base sm:text-lg font-black tracking-tight leading-none text-slate-900 truncate">
               THANDAR
             </h1>
-            <p className="text-[9px] sm:text-[10px] font-bold text-teal-600 uppercase tracking-wider mt-0.5 sm:mt-1 truncate">
+            <p className="text-[11px] sm:text-[11px] font-bold text-teal-600 uppercase tracking-wider mt-0.5 sm:mt-1 truncate">
               Myanmar AI Career Coach
             </p>
           </div>
@@ -524,7 +548,7 @@ const App: React.FC = () => {
           {!stats.isPaid && (
             <div className="flex items-center gap-2 bg-slate-100/90 py-1 px-2.5 rounded-xl border border-slate-200/60">
               <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse shrink-0" />
-              <div className="text-[10px] sm:text-xs font-bold text-slate-600 whitespace-nowrap">
+              <div className="text-[11px] sm:text-xs font-bold text-slate-600 whitespace-nowrap">
                 <span className="hidden xs:inline">လက်ကျန် </span>
                 <span>{remainingMinutes}:{remainingSeconds.toString().padStart(2, '0')}</span>
               </div>
@@ -544,7 +568,7 @@ const App: React.FC = () => {
             </span>
             <button 
               onClick={handleLogout}
-              className="px-2.5 sm:px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors"
+              className="px-2.5 sm:px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-colors"
               title="Logout"
             >
               ထွက်မည်
@@ -554,7 +578,7 @@ const App: React.FC = () => {
       </header>
 
       {/* Main Responsive Layout */}
-      <main className="flex-1 pt-18 sm:pt-22 pb-12 px-3 sm:px-6 max-w-4xl w-full mx-auto flex flex-col">
+      <main className="flex-1 pt-20 sm:pt-24 pb-12 px-3 sm:px-6 max-w-4xl w-full mx-auto flex flex-col">
         
         {/* Error Notification */}
         {errorMessage && (
@@ -719,7 +743,7 @@ const App: React.FC = () => {
                 ခလုတ်တစ်ခုစီကို နှိပ်၍ သက်ဆိုင်ရာ ဌာနအလိုက် မေးခွန်းများကို ရွေးချယ်လေ့ကျင့်နိုင်ပါသည်
               </p>
             </div>
-            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
+            <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
               {TARGET_ROLES.length} Roles Available
             </span>
           </div>
@@ -732,15 +756,7 @@ const App: React.FC = () => {
                 <button
                   key={role.id}
                   type="button"
-                  onClick={() => {
-                    setSelectedRoleId(role.id);
-                    if (status === ConnectionStatus.ACTIVE) {
-                      setMessages(prev => [
-                        ...prev,
-                        { role: 'assistant', text: `✨ အင်တာဗျူး အခန်းကဏ္ဍကို "${role.name} (${role.myanmarName})" သို့ ပြောင်းလဲလိုက်ပါသည်။ ဤအခန်းကဏ္ဍဆိုင်ရာ မေးခွန်းများကို မေးမြန်းပါမည်။` }
-                      ]);
-                    }
-                  }}
+                  onClick={() => handleRoleSelect(role)}
                   className={`relative p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border text-left transition-all flex flex-col justify-between group active:scale-[0.98] ${
                     isSelected
                       ? 'border-teal-600 bg-teal-50/80 ring-2 ring-teal-500/20 shadow-xs'
@@ -751,7 +767,7 @@ const App: React.FC = () => {
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xl sm:text-2xl">{role.icon}</span>
                     {isSelected ? (
-                      <span className="w-4 h-4 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px] font-black shrink-0">
+                      <span className="w-4 h-4 rounded-full bg-teal-600 text-white flex items-center justify-center text-[11px] font-black shrink-0">
                         ✓
                       </span>
                     ) : (
@@ -766,7 +782,7 @@ const App: React.FC = () => {
                     }`}>
                       {role.name.split(' ')[0]}
                     </h4>
-                    <p className="text-[10px] font-medium text-slate-500 line-clamp-1 mt-0.5">
+                    <p className="text-[11px] font-medium text-slate-500 line-clamp-1 mt-0.5">
                       {role.myanmarName}
                     </p>
                   </div>
@@ -793,7 +809,7 @@ const App: React.FC = () => {
               {/* Skill tags */}
               <div className="flex flex-wrap gap-1">
                 {selectedRole.keySkills.map((skill, idx) => (
-                  <span key={idx} className="text-[10px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200/70">
+                  <span key={idx} className="text-[11px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200/70">
                     {skill}
                   </span>
                 ))}
@@ -802,7 +818,7 @@ const App: React.FC = () => {
 
             {/* Role Sample Questions */}
             <div className="mt-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
                 <span>🎯</span>
                 <span>မေးခွန်းကို နှိပ်၍ တိုက်ရိုက် လေ့ကျင့်ပါ (Click any question to practice):</span>
               </p>
@@ -816,7 +832,7 @@ const App: React.FC = () => {
                   >
                     <span className="text-teal-600 font-bold shrink-0 mt-0.5">#{idx + 1}</span>
                     <span className="flex-1 group-hover:text-teal-900">{q}</span>
-                    <span className="text-[10px] text-teal-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <span className="text-[11px] text-teal-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       လေ့ကျင့်မည် ➡️
                     </span>
                   </button>
@@ -833,7 +849,7 @@ const App: React.FC = () => {
               <span>💬</span>
               <span>စကားပြောဆိုမှု မှတ်တမ်း (Transcript)</span>
               {messages.length > 0 && (
-                <span className="text-[10px] text-slate-400 font-semibold">({messages.length})</span>
+                <span className="text-[11px] text-slate-500 font-semibold">({messages.length})</span>
               )}
             </h3>
 
@@ -841,7 +857,7 @@ const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setMessages([])}
-                className="text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors"
+                className="text-[11px] font-bold text-slate-500 hover:text-slate-600 transition-colors"
               >
                 ရှင်းလင်းမည် (Clear)
               </button>
@@ -850,12 +866,12 @@ const App: React.FC = () => {
 
           <div className="bg-slate-100/60 rounded-2xl p-3 sm:p-4 min-h-[160px] max-h-[380px] overflow-y-auto custom-scrollbar flex flex-col gap-2.5 border border-slate-200/50">
             {messages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center py-8 text-center text-slate-400">
+              <div className="h-full flex flex-col items-center justify-center py-8 text-center text-slate-500">
                 <span className="text-2xl mb-1.5">🎙️</span>
                 <p className="text-xs font-semibold text-slate-500">
                   စကားပြောဆိုမှု မရှိသေးပါ
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5 max-w-xs">
+                <p className="text-[11px] text-slate-500 mt-0.5 max-w-xs">
                   {selectedRole.name} ကို ရွေးပြီး START ခလုတ်ကို နှိပ်လိုက်သည်နှင့် မေးခွန်း ပေါ်လာပြီး သန္တာနှင့် စတင်စကားပြောနိုင်ပါမည်။
                 </p>
               </div>
@@ -865,7 +881,7 @@ const App: React.FC = () => {
                   key={i} 
                   className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}
                 >
-                  <span className="text-[10px] font-bold text-slate-400 mb-0.5 px-1">
+                  <span className="text-[11px] font-bold text-slate-500 mb-0.5 px-1">
                     {m.role === 'user' ? '👤 သင် (Candidate)' : '👸 သန္တာ (Coach)'}
                   </span>
                   <div className={`max-w-[88%] sm:max-w-[80%] px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl text-xs sm:text-sm font-medium leading-relaxed shadow-2xs ${
