@@ -108,7 +108,7 @@ export const QuestionPopup: React.FC<QuestionPopupProps> = ({
         >
           <span className="text-lg">{roleIcon}</span>
           <div className="text-left">
-            <p className="text-[10px] font-black uppercase tracking-wider text-teal-400">
+            <p className="text-[11px] font-black uppercase tracking-wider text-teal-400">
               မေးခွန်း #{questionIndex}
             </p>
             <p className="text-xs font-bold truncate max-w-[180px]">
@@ -135,7 +135,7 @@ export const QuestionPopup: React.FC<QuestionPopupProps> = ({
             </span>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-teal-500 text-slate-950">
+                <span className="text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-teal-500 text-slate-950">
                   Question #{questionIndex}
                 </span>
                 <span className="text-xs font-bold text-slate-300 truncate">
@@ -195,7 +195,7 @@ export const QuestionPopup: React.FC<QuestionPopupProps> = ({
             </div>
           )}
 
-          <span className="text-[10px] font-semibold text-slate-400 hidden xs:inline">
+          <span className="text-[11px] font-semibold text-slate-500 hidden xs:inline">
             {canAnswer ? 'Ready to Answer' : 'Listening...'}
           </span>
         </div>
@@ -230,7 +230,7 @@ export const QuestionPopup: React.FC<QuestionPopupProps> = ({
           {/* Live Candidate Voice Answer Bubble (if candidate is speaking) */}
           {candidateLiveAnswer && candidateLiveAnswer.trim().length > 0 && (
             <div className="mt-3 p-3 rounded-xl bg-teal-50 border border-teal-200 text-xs sm:text-sm text-teal-950 animate-in fade-in duration-200">
-              <p className="text-[10px] font-black uppercase tracking-wider text-teal-700 mb-1 flex items-center gap-1">
+              <p className="text-[11px] font-black uppercase tracking-wider text-teal-700 mb-1 flex items-center gap-1">
                 <span>🗣️</span>
                 <span>သင့်အဖြေ (Your Spoken Answer):</span>
               </p>

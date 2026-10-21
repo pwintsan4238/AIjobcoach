@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="my">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,32 +7,14 @@
     <meta name="description" content="An interactive AI agent designed to help Myanmar-speaking candidates prepare for job interviews through real-time voice conversations and mock sessions.">
     <meta property="og:title" content="AI Agent HR:Thandar: Myanmar AI Job Interview Coach">
     <meta property="og:description" content="An interactive AI agent designed to help Myanmar-speaking candidates prepare for job interviews through real-time voice conversations and mock sessions.">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); }
-        @keyframes float {
-          0% { transform: translateY(0px); }
-          50% { transform: translateY(-10px); }
-          100% { transform: translateY(0px); }
-        }
-        .float-anim { animation: float 3s ease-in-out infinite; }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
-        @keyframes waveform {
-          0%, 100% { transform: scaleY(0.25); }
-          50% { transform: scaleY(1); }
-        }
-        .animate-waveform-bar {
-          animation: waveform 0.6s ease-in-out infinite alternate;
-          transform-origin: center;
-        }
-    </style>
+    <meta name="theme-color" content="#0d9488">
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+Myanmar:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+Myanmar:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"></noscript>
 </head>
-<body class="bg-[#fdfdfd] text-slate-900 selection:bg-teal-100 selection:text-teal-900">
+<body class="bg-[#fdfdfd] text-slate-900 font-sans selection:bg-teal-100 selection:text-teal-900">
     <div id="root"></div>
     <!-- Entry point for the application logic -->
     <script type="module" src="/index.tsx"></script>

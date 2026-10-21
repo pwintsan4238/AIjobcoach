@@ -123,7 +123,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {!isGated && onClose && (
           <button 
             onClick={onClose}
-            className="absolute top-3.5 right-3.5 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-50 transition-colors z-10"
+            className="absolute top-3.5 right-3.5 text-slate-500 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-50 transition-colors z-10"
             aria-label="Close modal"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -154,7 +154,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               type="button"
               onClick={() => { setMode('login'); setError(''); }}
               className={`flex-1 py-1.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all ${
-                mode === 'login' ? 'bg-white shadow-xs text-slate-900' : 'text-slate-500 hover:text-slate-700'
+                mode === 'login' ? 'bg-white shadow-xs text-slate-900' : 'text-slate-600 hover:text-slate-800'
               }`}
             >
               Login
@@ -163,7 +163,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               type="button"
               onClick={() => { setMode('register'); setError(''); }}
               className={`flex-1 py-1.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all ${
-                mode === 'register' ? 'bg-white shadow-xs text-slate-900' : 'text-slate-500 hover:text-slate-700'
+                mode === 'register' ? 'bg-white shadow-xs text-slate-900' : 'text-slate-600 hover:text-slate-800'
               }`}
             >
               Register
@@ -174,11 +174,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <form onSubmit={handleSubmit} className="space-y-2.5 sm:space-y-3">
             {mode === 'register' && (
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                <label htmlFor="auth-name" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                   အမည် (Full Name)
                 </label>
                 <input 
                   required
+                  id="auth-name"
+                  autoComplete="name"
                   type="text" 
                   placeholder="ဥပမာ - မသန္တာ"
                   className="w-full px-3.5 py-2 sm:py-2.5 rounded-xl border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10 bg-slate-50 focus:bg-white outline-none transition-all text-xs sm:text-sm font-semibold"
@@ -189,11 +191,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             )}
             
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+              <label htmlFor="auth-email" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                 အီးမေးလ် (Email Address)
               </label>
               <input 
                 required
+                id="auth-email"
+                autoComplete="email"
                 type="email" 
                 placeholder="name@example.com"
                 className="w-full px-3.5 py-2 sm:py-2.5 rounded-xl border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10 bg-slate-50 focus:bg-white outline-none transition-all text-xs sm:text-sm font-semibold"
@@ -203,11 +207,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+              <label htmlFor="auth-password" className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                 စကားဝှက် (Password)
               </label>
               <input 
                 required
+                id="auth-password"
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 type="password" 
                 placeholder="••••••••"
                 className="w-full px-3.5 py-2 sm:py-2.5 rounded-xl border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10 bg-slate-50 focus:bg-white outline-none transition-all text-xs sm:text-sm font-semibold"
@@ -245,7 +251,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t border-slate-200/70" />
             </div>
-            <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider text-slate-400">
+            <div className="relative flex justify-center text-[11px] uppercase font-bold tracking-wider text-slate-500">
               <span className="bg-white px-2">သို့မဟုတ် (Or)</span>
             </div>
           </div>
