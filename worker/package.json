@@ -6,9 +6,6 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy"
   },
-  "dependencies": {
-    "@google/genai": "2.30.0"
-  },
   "devDependencies": {
     "wrangler": "4.151.3"
   }

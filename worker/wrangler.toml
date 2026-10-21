@@ -1,10 +1,6 @@
 name = "thandar-token"
 main = "src/index.js"
 compatibility_date = "2026-10-01"
-compatibility_flags = ["nodejs_compat"]
 
-[vars]
-# Comma-separated list of sites allowed to request tokens
-ALLOWED_ORIGINS = "https://pwintsan4238.github.io,http://localhost:3000,http://localhost:4173"
 
 # GEMINI_API_KEY is a secret: set it with `npx wrangler secret put GEMINI_API_KEY`
