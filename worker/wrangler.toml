@@ -2,5 +2,16 @@ name = "thandar-token"
 main = "src/index.js"
 compatibility_date = "2026-10-01"
 
+# Keep variables set in the Cloudflare dashboard (e.g. USER_DAILY_LIMIT) across deploys
+keep_vars = true
+
+# Daily usage counter
+[[durable_objects.bindings]]
+name = "QUOTA"
+class_name = "QuotaCounter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["QuotaCounter"]
 
 # GEMINI_API_KEY is a secret: set it with `npx wrangler secret put GEMINI_API_KEY`

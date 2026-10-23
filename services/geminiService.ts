@@ -2,6 +2,7 @@
 import { GoogleGenAI, Modality, LiveServerMessage, Blob } from '@google/genai';
 import { encode, decode, decodeAudioData } from './audioUtils.ts';
 import { MODEL_NAME, VOICE_NAME, SYSTEM_INSTRUCTION } from '../constants.ts';
+import { auth } from './firebase.ts';
 
 const TOKEN_URL = import.meta.env.VITE_TOKEN_URL as string | undefined;
 
@@ -12,7 +13,12 @@ const TOKEN_URL = import.meta.env.VITE_TOKEN_URL as string | undefined;
  */
 async function createClient(): Promise<GoogleGenAI> {
   if (TOKEN_URL) {
-    const res = await fetch(TOKEN_URL, { method: 'POST' });
+    // Signed-in users are counted by account; guests (no Firebase user) by IP
+    const idToken = await auth.currentUser?.getIdToken().catch(() => null);
+    const res = await fetch(TOKEN_URL, {
+      method: 'POST',
+      headers: idToken ? { Authorization: `Bearer ${idToken}` } : undefined,
+    });
     const body = await res.json().catch(() => ({}));
     if (!res.ok || !body.token) {
       throw new Error(body.error || "ဆာဗာမှ ခွင့်ပြုချက် မရရှိပါ။ ခဏနေမှ ပြန်ကြိုးစားပါ။ (Could not get a session token)");
