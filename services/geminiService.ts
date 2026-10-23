@@ -3,6 +3,30 @@ import { GoogleGenAI, Modality, LiveServerMessage, Blob } from '@google/genai';
 import { encode, decode, decodeAudioData } from './audioUtils.ts';
 import { MODEL_NAME, VOICE_NAME, SYSTEM_INSTRUCTION } from '../constants.ts';
 
+const TOKEN_URL = import.meta.env.VITE_TOKEN_URL as string | undefined;
+
+/**
+ * Builds a Gemini client. In production the browser gets a short-lived
+ * token from the token Worker, so the real API key is never shipped.
+ * A raw key is only used for local development.
+ */
+async function createClient(): Promise<GoogleGenAI> {
+  if (TOKEN_URL) {
+    const res = await fetch(TOKEN_URL, { method: 'POST' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.token) {
+      throw new Error(body.error || "ဆာဗာမှ ခွင့်ပြုချက် မရရှိပါ။ ခဏနေမှ ပြန်ကြိုးစားပါ။ (Could not get a session token)");
+    }
+    return new GoogleGenAI({ apiKey: body.token, httpOptions: { apiVersion: 'v1alpha' } });
+  }
+
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'undefined' || apiKey === 'PLACEHOLDER_API_KEY') {
+    throw new Error("API Key is missing. Set VITE_TOKEN_URL, or GEMINI_API_KEY for local development.");
+  }
+  return new GoogleGenAI({ apiKey });
+}
+
 export class InterviewSession {
   private session: any = null;
   private inputAudioContext: AudioContext | null = null;
@@ -28,20 +52,13 @@ export class InterviewSession {
     openingQuestion?: string
   ) {
     try {
-      // Use API Key from environment
-      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-      if (!apiKey || apiKey === 'undefined' || apiKey === 'PLACEHOLDER_API_KEY') {
-        throw new Error("API Key is missing. Please ensure GEMINI_API_KEY is configured in your environment.");
-      }
+      const ai = await createClient();
 
       this.inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       this.outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
 
       // Request microphone access
       this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      // Initialize Google GenAI client
-      const ai = new GoogleGenAI({ apiKey });
 
       // Connect to Gemini Live API
       const sessionPromise = ai.live.connect({

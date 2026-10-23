@@ -1,0 +1,6 @@
+name = "thandar-token"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+
+# GEMINI_API_KEY is a secret: set it with `npx wrangler secret put GEMINI_API_KEY`
