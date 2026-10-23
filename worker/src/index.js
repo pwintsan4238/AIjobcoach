@@ -65,7 +65,7 @@ export default {
       who = { key: 'user:' + uid, limit: limitOf(env, 'USER_DAILY_LIMIT'), code: 'limit_user' };
     } else {
       const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-      who = { key: 'ip:' + ip, limit: limitOf(env, 'GUEST_DAILY_LIMIT'), code: 'limit_guest' };
+      who = { key: 'ip:' + guestNetwork(ip), limit: limitOf(env, 'GUEST_DAILY_LIMIT'), code: 'limit_guest' };
     }
 
     const quota = env.QUOTA.get(env.QUOTA.idFromName('global'));
@@ -163,6 +163,19 @@ function b64urlBytes(s) {
 
 function b64urlText(s) {
   return new TextDecoder().decode(b64urlBytes(s));
+}
+
+/**
+ * An IPv6 household gets a whole /64 block and can switch addresses freely,
+ * so guests on IPv6 are counted by their /64 network. IPv4 is used as is.
+ */
+function guestNetwork(ip) {
+  if (!ip.includes(':') || ip.includes('.')) return ip;
+  const [head, tail = ''] = ip.toLowerCase().split('::');
+  const left = head ? head.split(':') : [];
+  const right = tail ? tail.split(':') : [];
+  const full = ip.includes('::') ? [...left, ...Array(8 - left.length - right.length).fill('0'), ...right] : left;
+  return full.slice(0, 4).map(h => h.replace(/^0+(?=.)/, '')).join(':') + '::/64';
 }
 
 function myanmarDay() {
