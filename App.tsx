@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { InterviewSession } from './services/geminiService.ts';
-import { Message, ConnectionStatus, UserStats, User } from './types.ts';
+import { Message, ConnectionStatus, UserStats, User, InterviewLanguage } from './types.ts';
 import { Waveform } from './components/Waveform.tsx';
 import { AuthModal } from './components/AuthModal.tsx';
 import { QuestionPopup } from './components/QuestionPopup.tsx';
@@ -217,6 +217,9 @@ const App: React.FC = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [selectedRoleId, setSelectedRoleId] = useState<string>('hr');
+  const [language, setLanguage] = useState<InterviewLanguage>(() => {
+    try { return localStorage.getItem('thandar_language') === 'en' ? 'en' : 'my'; } catch { return 'my'; }
+  });
   const [showStarGuide, setShowStarGuide] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -299,6 +302,9 @@ const App: React.FC = () => {
 
   // Initial greeting question generator based on selected role
   const getOpeningQuestionForRole = (role: RoleConfig) => {
+    if (language === 'en') {
+      return `Hello, I'm Thandar. Let's begin your interview for the ${role.name} position. To start, please briefly introduce yourself and tell me about your experience related to ${role.name}.`;
+    }
     return `မင်္ဂလာပါရှင်၊ ကျွန်မနာမည် သန္တာပါ။ ${role.name} (${role.myanmarName}) အလုပ်အကိုင်အတွက် အင်တာဗျူး စတင်ပါမယ်။ ပထမဆုံးအနေဖြင့် သင့်အကြောင်း အကျဉ်းချုပ်နှင့် ${role.myanmarName} ဆိုင်ရာ အတွေ့အကြုံများကို မိတ်ဆက်ပြောပြပေးပါရှင်။`;
   };
 
@@ -401,7 +407,8 @@ const App: React.FC = () => {
           }
         },
         rolePromptName,
-        initialQ
+        initialQ,
+        language
       );
 
       setStatus(ConnectionStatus.ACTIVE);
@@ -464,7 +471,7 @@ const App: React.FC = () => {
     });
     setQuestionPopupKey(k => k + 1);
     sessionRef.current.sendText(
-      `The candidate wants to practice this question next. Ask it now, exactly as written, in Myanmar: "${question}"`
+      `The candidate wants to practice this question next. Ask it now in ${language === 'en' ? 'English (translate it naturally if it is written in Myanmar)' : 'Myanmar, exactly as written'}: "${question}"`
     );
   };
 
@@ -477,7 +484,7 @@ const App: React.FC = () => {
       { role: 'assistant', text: `✨ အင်တာဗျူး အခန်းကဏ္ဍကို "${role.name} (${role.myanmarName})" သို့ ပြောင်းလဲလိုက်ပါသည်။ ဤအခန်းကဏ္ဍဆိုင်ရာ မေးခွန်းများကို မေးမြန်းပါမည်။` }
     ]);
     sessionRef.current.sendText(
-      `The candidate has switched the target role to "${role.name} (${role.myanmarName})". From now on, ask realistic interview questions for this role in Myanmar. Briefly acknowledge the switch and ask the first question for this role.`
+      `The candidate has switched the target role to "${role.name} (${role.myanmarName})". From now on, ask realistic interview questions for this role in ${language === 'en' ? 'English' : 'Myanmar'}. Briefly acknowledge the switch and ask the first question for this role.`
     );
   };
 
@@ -692,6 +699,41 @@ const App: React.FC = () => {
                 ? 'မေးခွန်းကို စကားလုံးတစ်လုံးချင်း အပေါ်တွင် ကြည့်ရှုနားထောင်ပြီး သင့်အလှည့်ရောက်ပါက မိုက်ခရိုဖုန်းဖြင့် စတင်ဖြေဆိုပါ။' 
                 : 'အောက်တွင် လျှောက်ထားလိုသည့် အလုပ်အကိုင်ခလုတ်ကို ရွေးချယ်ပြီး START INTERVIEW ခလုတ်ကို နှိပ်ပါ။'}
             </p>
+          </div>
+
+          {/* Interview language switch (locked while a session is running) */}
+          <div className="flex flex-col items-center gap-1.5 mt-3">
+            <span className="text-[11px] font-bold text-slate-500">အင်တာဗျူး ဘာသာစကား (Interview Language)</span>
+            <div role="radiogroup" aria-label="Interview language" className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
+              {([
+                { id: 'my', label: 'မြန်မာ' },
+                { id: 'en', label: 'English' },
+              ] as { id: InterviewLanguage; label: string }[]).map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={language === opt.id}
+                  disabled={status !== ConnectionStatus.IDLE}
+                  onClick={() => {
+                    setLanguage(opt.id);
+                    try { localStorage.setItem('thandar_language', opt.id); } catch {}
+                  }}
+                  className={`px-4 sm:px-5 py-1.5 rounded-lg text-xs font-black transition-all disabled:cursor-not-allowed ${
+                    language === opt.id
+                      ? 'bg-white text-teal-700 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800 disabled:hover:text-slate-500'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <span className="text-[11px] text-slate-400 text-center">
+              {language === 'en'
+                ? 'International / overseas job interview practice in English'
+                : 'မြန်မာဘာသာဖြင့် အင်တာဗျူး လေ့ကျင့်ပါ'}
+            </span>
           </div>
 
           {/* Start/Stop Main CTA */}

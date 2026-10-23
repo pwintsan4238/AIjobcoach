@@ -1,7 +1,8 @@
 
 import { GoogleGenAI, Modality, LiveServerMessage, Blob } from '@google/genai';
 import { encode, decode, decodeAudioData } from './audioUtils.ts';
-import { MODEL_NAME, VOICE_NAME, SYSTEM_INSTRUCTION } from '../constants.ts';
+import { MODEL_NAME, VOICE_NAME, SYSTEM_INSTRUCTION, ENGLISH_MODE_INSTRUCTION } from '../constants.ts';
+import { InterviewLanguage } from '../types.ts';
 import { auth } from './firebase.ts';
 
 const TOKEN_URL = import.meta.env.VITE_TOKEN_URL as string | undefined;
@@ -55,9 +56,16 @@ export class InterviewSession {
       onSpeaking: (isSpeaking: boolean) => void;
     },
     targetRole?: string,
-    openingQuestion?: string
+    openingQuestion?: string,
+    language: InterviewLanguage = 'my'
   ) {
     try {
+      const english = language === 'en';
+      const roleFocus = targetRole
+        ? `\n\nCURRENT TARGET ROLE FOCUS:\nThe candidate wants to practice specifically for the role of "${targetRole}". Warmly welcome them in ${english ? 'English' : 'Myanmar language'} for the ${targetRole} interview, and ask realistic, practical interview questions specifically relevant to a ${targetRole} job${english ? '' : ' in Myanmar'}.`
+        : '';
+      const systemInstruction = SYSTEM_INSTRUCTION + (english ? ENGLISH_MODE_INSTRUCTION : '') + roleFocus;
+
       const ai = await createClient();
 
       this.inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
@@ -163,9 +171,7 @@ export class InterviewSession {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE_NAME } },
           },
-          systemInstruction: targetRole
-            ? `${SYSTEM_INSTRUCTION}\n\nCURRENT TARGET ROLE FOCUS:\nThe candidate wants to practice specifically for the role of "${targetRole}". Warmly welcome them in Myanmar language for the ${targetRole} interview, and ask realistic, practical interview questions specifically relevant to a ${targetRole} job in Myanmar.`
-            : SYSTEM_INSTRUCTION,
+          systemInstruction,
         },
       });
 
@@ -174,7 +180,7 @@ export class InterviewSession {
       // Make the coach open with the exact question shown on screen
       if (openingQuestion) {
         this.sendText(
-          `Start the interview now. Your first question must be exactly this (say it in Myanmar, word for word): "${openingQuestion}"`
+          `Start the interview now. Your first question must be exactly this (say it in ${english ? 'English' : 'Myanmar'}, word for word): "${openingQuestion}"`
         );
       }
     } catch (err: any) {
