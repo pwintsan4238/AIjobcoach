@@ -19,6 +19,9 @@ export interface UserStats {
   currentUser?: User | null;
 }
 
+/** Language the interview is conducted in */
+export type InterviewLanguage = 'my' | 'en';
+
 export enum ConnectionStatus {
   IDLE = 'IDLE',
   CONNECTING = 'CONNECTING',
