@@ -7,6 +7,24 @@ import { auth } from './firebase.ts';
 
 const TOKEN_URL = import.meta.env.VITE_TOKEN_URL as string | undefined;
 
+const MYANMAR_SCRIPT = /[က-႟]/;
+const TARGET_INPUT_RATE = 16000;
+
+/** Resamples mic audio to the 16 kHz Gemini expects, averaging each step as a simple low-pass. */
+function downsampleTo16k(input: Float32Array, inputRate: number): Float32Array {
+  if (inputRate === TARGET_INPUT_RATE) return input;
+  const ratio = inputRate / TARGET_INPUT_RATE;
+  const output = new Float32Array(Math.floor(input.length / ratio));
+  for (let i = 0; i < output.length; i++) {
+    const start = Math.floor(i * ratio);
+    const end = Math.min(input.length, Math.floor((i + 1) * ratio));
+    let sum = 0;
+    for (let j = start; j < end; j++) sum += input[j];
+    output[i] = sum / Math.max(1, end - start);
+  }
+  return output;
+}
+
 /**
  * Builds a Gemini client. In production the browser gets a short-lived
  * token from the token Worker, so the real API key is never shipped.
@@ -66,13 +84,22 @@ export class InterviewSession {
         : '';
       const systemInstruction = SYSTEM_INSTRUCTION + (english ? ENGLISH_MODE_INSTRUCTION : '') + roleFocus;
 
+      // Audio contexts are created before any await so they count as part of
+      // the user's click; otherwise mobile browsers keep them suspended (silent).
+      // The mic runs at the device's own rate and is resampled to 16 kHz below,
+      // because some browsers ignore or reject a requested 16 kHz rate.
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      this.inputAudioContext = new AudioCtx();
+      this.outputAudioContext = new AudioCtx({ sampleRate: 24000 });
+      this.inputAudioContext.resume().catch(() => {});
+      this.outputAudioContext.resume().catch(() => {});
+
+      // Echo cancellation keeps Thandar's voice from the speakers out of the candidate's answer
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+
       const ai = await createClient();
-
-      this.inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-      this.outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-
-      // Request microphone access
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       // Connect to Gemini Live API
       const sessionPromise = ai.live.connect({
@@ -85,8 +112,9 @@ export class InterviewSession {
             const source = this.inputAudioContext.createMediaStreamSource(this.stream);
             const scriptProcessor = this.inputAudioContext.createScriptProcessor(4096, 1, 1);
 
+            const inputRate = this.inputAudioContext.sampleRate;
             scriptProcessor.onaudioprocess = (e) => {
-              const inputData = e.inputBuffer.getChannelData(0);
+              const inputData = downsampleTo16k(e.inputBuffer.getChannelData(0), inputRate);
               const pcmBlob = this.createBlob(inputData);
               
               // CRITICAL: Solely rely on sessionPromise resolves and then call `session.sendRealtimeInput`, 
@@ -105,12 +133,11 @@ export class InterviewSession {
             scriptProcessor.connect(this.inputAudioContext.destination);
           },
           onmessage: async (message: LiveServerMessage) => {
-            // Handle transcriptions (both input and output)
-            if (message.serverContent?.outputTranscription) {
-              callbacks.onTranscription(message.serverContent.outputTranscription.text, false);
-            } else if (message.serverContent?.inputTranscription) {
-              callbacks.onTranscription(message.serverContent.inputTranscription.text, true);
-            }
+            // Handle transcriptions; one message can carry both the candidate's and Thandar's
+            const inputText = message.serverContent?.inputTranscription?.text;
+            if (inputText) callbacks.onTranscription(inputText, true);
+            const outputText = message.serverContent?.outputTranscription?.text;
+            if (outputText) callbacks.onTranscription(outputText, false);
 
             if (message.serverContent?.turnComplete) {
               callbacks.onTurnComplete();
@@ -167,7 +194,8 @@ export class InterviewSession {
         config: {
           responseModalities: [Modality.AUDIO],
           outputAudioTranscription: {},
-          inputAudioTranscription: {},
+          // Hint that answers are in Myanmar (with English terms), or English in English mode
+          inputAudioTranscription: { languageCodes: english ? ['en-US', 'my-MM'] : ['my-MM', 'en-US'] },
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE_NAME } },
           },
@@ -179,9 +207,10 @@ export class InterviewSession {
 
       // Make the coach open with the exact question shown on screen
       if (openingQuestion) {
-        this.sendText(
-          `Start the interview now. Your first question must be exactly this (say it in ${english ? 'English' : 'Myanmar'}, word for word): "${openingQuestion}"`
-        );
+        const howToSay = english && MYANMAR_SCRIPT.test(openingQuestion)
+          ? 'translate it naturally into English and ask it in English'
+          : `say it in ${english ? 'English' : 'Myanmar'}, word for word`;
+        this.sendText(`Start the interview now. Your first question must be exactly this (${howToSay}): "${openingQuestion}"`);
       }
     } catch (err: any) {
       this.stop();
@@ -194,10 +223,21 @@ export class InterviewSession {
    */
   sendText(text: string) {
     if (!this.session) return;
+    // Stop whatever Thandar is still saying so the new question doesn't play over it
+    this.stopPlayback();
     this.session.sendClientContent({
       turns: [{ role: 'user', parts: [{ text }] }],
       turnComplete: true,
     });
+  }
+
+  /** Stops Thandar's queued audio immediately. */
+  private stopPlayback() {
+    for (const source of this.sources.values()) {
+      try { source.stop(); } catch(e) {}
+    }
+    this.sources.clear();
+    this.nextStartTime = 0;
   }
 
   /**
@@ -207,8 +247,9 @@ export class InterviewSession {
     const l = data.length;
     const int16 = new Int16Array(l);
     for (let i = 0; i < l; i++) {
-      // Scale and clip to Int16 range (32768)
-      int16[i] = data[i] * 32768;
+      // Clip first: a full-scale sample would otherwise wrap around and crackle
+      const s = Math.max(-1, Math.min(1, data[i]));
+      int16[i] = s < 0 ? s * 32768 : s * 32767;
     }
     return {
       data: encode(new Uint8Array(int16.buffer)),

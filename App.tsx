@@ -346,15 +346,18 @@ const App: React.FC = () => {
     });
     setQuestionPopupKey(k => k + 1);
 
+    const session = new InterviewSession();
+    // Events from an earlier session (e.g. its late "closed") must not stop this one
+    const isCurrent = () => sessionRef.current === session;
     try {
       setStatus(ConnectionStatus.CONNECTING);
-      sessionRef.current = new InterviewSession();
-      
+      sessionRef.current = session;
+
       const rolePromptName = selectedPosition
         ? `${selectedPosition.name} (${selectedPosition.myanmarName}), in the ${selectedRole.name} field`
         : `${selectedRole.name} (${selectedRole.myanmarName})`;
 
-      await sessionRef.current.start(
+      await session.start(
         {
           onTranscription: (text, isUser) => {
             if (isUser) {
@@ -405,11 +408,13 @@ const App: React.FC = () => {
           },
           onError: (err) => {
             console.error("Session Error:", err);
+            if (!isCurrent()) return;
             setStatus(ConnectionStatus.ERROR);
             setErrorMessage(err?.message || "မိုက်ခရိုဖုန်း သို့မဟုတ် အသံချိတ်ဆက်မှု အမှားအယွင်း ရှိနေပါသည်။");
             handleStop();
           },
           onClose: () => {
+            if (!isCurrent()) return;
             setStatus(ConnectionStatus.IDLE);
             handleStop();
           },
@@ -425,6 +430,11 @@ const App: React.FC = () => {
         language
       );
 
+      // Stopped (or replaced) while still connecting
+      if (!isCurrent()) {
+        session.stop();
+        return;
+      }
       setStatus(ConnectionStatus.ACTIVE);
       lastTickRef.current = Date.now();
       
@@ -441,6 +451,8 @@ const App: React.FC = () => {
 
     } catch (err: any) {
       console.error("Failed to start session:", err);
+      // Stopped while connecting: the user already left, so no error to show
+      if (!isCurrent()) return;
       setStatus(ConnectionStatus.ERROR);
       if (err?.name === 'NotAllowedError') {
         setErrorMessage("မိုက်ခရိုဖုန်း အသုံးပြုခွင့်ကို Browser တွင် Allow ပြုလုပ်ပေးပါ။");
@@ -926,7 +938,8 @@ const App: React.FC = () => {
                     key={idx}
                     type="button"
                     onClick={() => handlePracticeQuestion(q)}
-                    className="w-full text-left bg-white hover:bg-teal-50/50 hover:border-teal-300 p-2 sm:p-2.5 rounded-lg border border-slate-200/70 text-xs text-slate-700 font-medium flex items-start gap-2 shadow-2xs transition-all group"
+                    disabled={status === ConnectionStatus.CONNECTING}
+                    className="w-full text-left bg-white hover:bg-teal-50/50 hover:border-teal-300 p-2 sm:p-2.5 rounded-lg border border-slate-200/70 text-xs text-slate-700 font-medium flex items-start gap-2 shadow-2xs transition-all group disabled:opacity-50 disabled:cursor-wait disabled:hover:bg-white disabled:hover:border-slate-200/70"
                   >
                     <span className="text-teal-600 font-bold shrink-0 mt-0.5">#{idx + 1}</span>
                     <span className="flex-1 group-hover:text-teal-900">{q}</span>
