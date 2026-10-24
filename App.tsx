@@ -4,6 +4,7 @@ import { Message, ConnectionStatus, UserStats, User, InterviewLanguage } from '.
 import { Waveform } from './components/Waveform.tsx';
 import { AuthModal } from './components/AuthModal.tsx';
 import { QuestionPopup } from './components/QuestionPopup.tsx';
+import { ROLE_POSITIONS } from './data/positions.ts';
 import { auth } from './services/firebase.ts';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 
@@ -257,6 +258,16 @@ const App: React.FC = () => {
   const questionIndexRef = useRef<number>(1);
 
   const selectedRole = TARGET_ROLES.find(r => r.id === selectedRoleId) || TARGET_ROLES[0];
+  // Optional specific position inside the selected field ('' = all positions)
+  const [selectedPositionId, setSelectedPositionId] = useState<string>('');
+  const rolePositions = ROLE_POSITIONS[selectedRole.id] || [];
+  const selectedPosition = rolePositions.find(p => p.id === selectedPositionId) || null;
+  // The job being interviewed for: the chosen position, or the whole field
+  const interviewTarget = selectedPosition || selectedRole;
+  const shownSkills = selectedPosition ? selectedPosition.keySkills : selectedRole.keySkills;
+  const shownQuestions = selectedPosition
+    ? selectedPosition.questions.map(q => (language === 'en' ? q.en : q.my))
+    : selectedRole.sampleQuestions;
   // Session callbacks outlive renders, so they read the current role from a ref
   const selectedRoleRef = useRef<RoleConfig>(selectedRole);
   selectedRoleRef.current = selectedRole;
@@ -301,7 +312,8 @@ const App: React.FC = () => {
   }, [messages]);
 
   // Initial greeting question generator based on selected role
-  const getOpeningQuestionForRole = (role: RoleConfig) => {
+  const getOpeningQuestionForRole = (field: RoleConfig) => {
+    const role = field.id === selectedRole.id ? interviewTarget : field;
     if (language === 'en') {
       return `Hello, I'm Thandar. Let's begin your interview for the ${role.name} position. To start, please briefly introduce yourself and tell me about your experience related to ${role.name}.`;
     }
@@ -338,7 +350,9 @@ const App: React.FC = () => {
       setStatus(ConnectionStatus.CONNECTING);
       sessionRef.current = new InterviewSession();
       
-      const rolePromptName = `${selectedRole.name} (${selectedRole.myanmarName})`;
+      const rolePromptName = selectedPosition
+        ? `${selectedPosition.name} (${selectedPosition.myanmarName}), in the ${selectedRole.name} field`
+        : `${selectedRole.name} (${selectedRole.myanmarName})`;
 
       await sessionRef.current.start(
         {
@@ -477,6 +491,7 @@ const App: React.FC = () => {
 
   const handleRoleSelect = (role: RoleConfig) => {
     setSelectedRoleId(role.id);
+    if (role.id !== selectedRoleId) setSelectedPositionId('');
     if (status !== ConnectionStatus.ACTIVE || !sessionRef.current || role.id === selectedRoleId) return;
 
     setMessages(prev => [
@@ -485,6 +500,24 @@ const App: React.FC = () => {
     ]);
     sessionRef.current.sendText(
       `The candidate has switched the target role to "${role.name} (${role.myanmarName})". From now on, ask realistic interview questions for this role in ${language === 'en' ? 'English' : 'Myanmar'}. Briefly acknowledge the switch and ask the first question for this role.`
+    );
+  };
+
+  const handlePositionSelect = (positionId: string) => {
+    if (positionId === selectedPositionId) return;
+    setSelectedPositionId(positionId);
+    if (status !== ConnectionStatus.ACTIVE || !sessionRef.current) return;
+
+    const position = rolePositions.find(p => p.id === positionId);
+    const target = position
+      ? `${position.name} (${position.myanmarName}), in the ${selectedRole.name} field`
+      : `${selectedRole.name} (${selectedRole.myanmarName}), any position`;
+    setMessages(prev => [
+      ...prev,
+      { role: 'assistant', text: `✨ ရာထူးကို "${position ? `${position.name} (${position.myanmarName})` : selectedRole.name}" သို့ ပြောင်းလဲလိုက်ပါသည်။ ဤရာထူးဆိုင်ရာ မေးခွန်းများကို မေးမြန်းပါမည်။` }
+    ]);
+    sessionRef.current.sendText(
+      `The candidate has switched the target position to "${target}". From now on, ask realistic interview questions for this position in ${language === 'en' ? 'English' : 'Myanmar'}. Briefly acknowledge the switch and ask the first question for this position.`
     );
   };
 
@@ -691,8 +724,8 @@ const App: React.FC = () => {
           <div className="text-center my-2">
             <h2 className="text-lg sm:text-xl font-black text-slate-900">
               {status === ConnectionStatus.ACTIVE 
-                ? `${selectedRole.name} အင်တာဗျူး လေ့ကျင့်နေပါသည်` 
-                : `${selectedRole.name} အတွက် သန္တာနှင့် အင်တာဗျူးလေ့ကျင့်ပါ`}
+                ? `${interviewTarget.name} အင်တာဗျူး လေ့ကျင့်နေပါသည်` 
+                : `${interviewTarget.name} အတွက် သန္တာနှင့် အင်တာဗျူးလေ့ကျင့်ပါ`}
             </h2>
             <p className="text-xs text-slate-500 mt-1 max-w-lg mx-auto">
               {status === ConnectionStatus.ACTIVE 
@@ -850,13 +883,36 @@ const App: React.FC = () => {
 
               {/* Skill tags */}
               <div className="flex flex-wrap gap-1">
-                {selectedRole.keySkills.map((skill, idx) => (
+                {shownSkills.map((skill, idx) => (
                   <span key={idx} className="text-[11px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200/70">
                     {skill}
                   </span>
                 ))}
               </div>
             </div>
+
+            {/* Position within the field: changes the skills and questions below */}
+            {rolePositions.length > 0 && (
+              <div className="mt-2.5">
+                <label htmlFor="position-select" className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
+                  <span>🧭</span>
+                  <span>ရာထူး ရွေးချယ်ပါ (Choose a position):</span>
+                </label>
+                <select
+                  id="position-select"
+                  value={selectedPositionId}
+                  onChange={e => handlePositionSelect(e.target.value)}
+                  className="w-full sm:max-w-md bg-white border border-slate-200/70 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-800 shadow-2xs focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-400 cursor-pointer"
+                >
+                  <option value="">{selectedRole.name.split(' (')[0]} - ရာထူးအားလုံး (All positions)</option>
+                  {rolePositions.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} - {p.myanmarName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Role Sample Questions */}
             <div className="mt-2.5">
@@ -865,7 +921,7 @@ const App: React.FC = () => {
                 <span>မေးခွန်းကို နှိပ်၍ တိုက်ရိုက် လေ့ကျင့်ပါ (Click any question to practice):</span>
               </p>
               <div className="space-y-1.5">
-                {selectedRole.sampleQuestions.map((q, idx) => (
+                {shownQuestions.map((q, idx) => (
                   <button 
                     key={idx}
                     type="button"
