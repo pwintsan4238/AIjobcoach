@@ -1,7 +1,7 @@
 
 import { GoogleGenAI, Modality, LiveServerMessage, Blob } from '@google/genai';
 import { encode, decode, decodeAudioData } from './audioUtils.ts';
-import { MODEL_NAME, VOICE_NAME, SYSTEM_INSTRUCTION, ENGLISH_MODE_INSTRUCTION } from '../constants.ts';
+import { MODEL_NAME, VOICE_NAME, SYSTEM_INSTRUCTION, ENGLISH_MODE_INSTRUCTION, ANSWER_SILENCE_MS } from '../constants.ts';
 import { InterviewLanguage } from '../types.ts';
 import { auth } from './firebase.ts';
 
@@ -200,6 +200,10 @@ export class InterviewSession {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE_NAME } },
           },
           systemInstruction,
+          // Pauses while thinking don't cut the candidate off; ~10 s of silence ends the answer
+          realtimeInputConfig: {
+            automaticActivityDetection: { silenceDurationMs: ANSWER_SILENCE_MS },
+          },
         },
       });
 

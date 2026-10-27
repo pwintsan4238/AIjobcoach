@@ -5,6 +5,7 @@ import { Waveform } from './components/Waveform.tsx';
 import { AuthModal } from './components/AuthModal.tsx';
 import { QuestionPopup } from './components/QuestionPopup.tsx';
 import { ROLE_POSITIONS } from './data/positions.ts';
+import { ANSWER_SILENCE_MS } from './constants.ts';
 import { auth } from './services/firebase.ts';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 
@@ -254,6 +255,9 @@ const App: React.FC = () => {
 
   // Turn accumulation refs to prevent fragmented message bubbles
   const currentUserTurnRef = useRef<string>('');
+  // When the candidate last spoke; drives the "feedback in N s" countdown (0 = not answering)
+  const lastAnswerAtRef = useRef<number>(0);
+  const [feedbackIn, setFeedbackIn] = useState<number | null>(null);
   const currentAssistantTurnRef = useRef<string>('');
   const questionIndexRef = useRef<number>(1);
 
@@ -362,6 +366,7 @@ const App: React.FC = () => {
           onTranscription: (text, isUser) => {
             if (isUser) {
               currentUserTurnRef.current += text;
+              lastAnswerAtRef.current = Date.now();
               setCandidateLiveAnswer(currentUserTurnRef.current);
 
               setMessages(prev => {
@@ -374,6 +379,8 @@ const App: React.FC = () => {
               });
             } else {
               currentAssistantTurnRef.current += text;
+              lastAnswerAtRef.current = 0;
+              setFeedbackIn(null);
 
               setMessages(prev => {
                 const last = prev[prev.length - 1];
@@ -447,6 +454,12 @@ const App: React.FC = () => {
           ...prev,
           accumulatedTimeMs: prev.accumulatedTimeMs + delta
         }));
+
+        // Seconds of silence left before Thandar treats the answer as finished
+        if (lastAnswerAtRef.current) {
+          const left = Math.ceil((ANSWER_SILENCE_MS - (now - lastAnswerAtRef.current)) / 1000);
+          setFeedbackIn(Math.max(0, left));
+        }
       }, 1000);
 
     } catch (err: any) {
@@ -464,6 +477,8 @@ const App: React.FC = () => {
   };
 
   const handleStop = () => {
+    lastAnswerAtRef.current = 0;
+    setFeedbackIn(null);
     if (timerRef.current) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
@@ -739,11 +754,19 @@ const App: React.FC = () => {
                 ? `${interviewTarget.name} အင်တာဗျူး လေ့ကျင့်နေပါသည်` 
                 : `${interviewTarget.name} အတွက် သန္တာနှင့် အင်တာဗျူးလေ့ကျင့်ပါ`}
             </h2>
-            <p className="text-xs text-slate-500 mt-1 max-w-lg mx-auto">
-              {status === ConnectionStatus.ACTIVE 
-                ? 'မေးခွန်းကို စကားလုံးတစ်လုံးချင်း အပေါ်တွင် ကြည့်ရှုနားထောင်ပြီး သင့်အလှည့်ရောက်ပါက မိုက်ခရိုဖုန်းဖြင့် စတင်ဖြေဆိုပါ။' 
-                : 'အောက်တွင် လျှောက်ထားလိုသည့် အလုပ်အကိုင်ခလုတ်ကို ရွေးချယ်ပြီး START INTERVIEW ခလုတ်ကို နှိပ်ပါ။'}
-            </p>
+            {status === ConnectionStatus.ACTIVE && feedbackIn !== null ? (
+              <p className="text-xs font-bold text-teal-700 mt-1.5 max-w-lg mx-auto" aria-live="polite">
+                {feedbackIn > 0
+                  ? `⏳ ဖြေဆိုပြီးပါက ငြိမ်နေပါ — ${feedbackIn} စက္ကန့်အကြာတွင် သန္တာက သင့်အဖြေကို အကဲဖြတ်ပေးပါမည်။ (Feedback in ${feedbackIn}s)`
+                  : '🧠 သန္တာ သင့်အဖြေကို အကဲဖြတ်နေပါသည်... (Reviewing your answer)'}
+              </p>
+            ) : (
+              <p className="text-xs text-slate-500 mt-1 max-w-lg mx-auto">
+                {status === ConnectionStatus.ACTIVE
+                  ? 'မေးခွန်းကို နားထောင်ပြီး မိုက်ခရိုဖုန်းဖြင့် ဖြေဆိုပါ။ ဖြေပြီးပါက ၁၀ စက္ကန့် ငြိမ်နေလျှင် သန္တာက အကဲဖြတ်ပြီး ပိုကောင်းအောင် ဖြေနည်းကို အကြံပြုပေးပါမည်။'
+                  : 'အောက်တွင် လျှောက်ထားလိုသည့် အလုပ်အကိုင်ခလုတ်ကို ရွေးချယ်ပြီး START INTERVIEW ခလုတ်ကို နှိပ်ပါ။'}
+              </p>
+            )}
           </div>
 
           {/* Interview language switch (locked while a session is running) */}
