@@ -200,7 +200,7 @@ export class InterviewSession {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE_NAME } },
           },
           systemInstruction,
-          // Pauses while thinking don't cut the candidate off; ~10 s of silence ends the answer
+          // Pauses while thinking don't cut the candidate off; a few seconds of silence (ANSWER_SILENCE_MS) ends the answer
           realtimeInputConfig: {
             automaticActivityDetection: { silenceDurationMs: ANSWER_SILENCE_MS },
           },
