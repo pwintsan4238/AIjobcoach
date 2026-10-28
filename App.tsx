@@ -2,7 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { InterviewSession } from './services/geminiService.ts';
 import { Message, ConnectionStatus, UserStats, User, InterviewLanguage } from './types.ts';
 import { Waveform } from './components/Waveform.tsx';
-import { AuthModal } from './components/AuthModal.tsx';
+import { AuthModal, makeGuestUser } from './components/AuthModal.tsx';
+import { Onboarding } from './components/Onboarding.tsx';
+import { MicIcon, ThandarMark } from './components/Icons.tsx';
 import { QuestionPopup } from './components/QuestionPopup.tsx';
 import { ROLE_POSITIONS } from './data/positions.ts';
 import { ANSWER_SILENCE_MS } from './constants.ts';
@@ -218,6 +220,8 @@ const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
+  // Logged-out users see the welcome screen first; this switches to the login form
+  const [showLogin, setShowLogin] = useState(false);
   const [selectedRoleId, setSelectedRoleId] = useState<string>('hr');
   const [language, setLanguage] = useState<InterviewLanguage>(() => {
     try { return localStorage.getItem('thandar_language') === 'en' ? 'en' : 'my'; } catch { return 'my'; }
@@ -549,6 +553,7 @@ const App: React.FC = () => {
   };
 
   const handleAuthComplete = (user: User) => {
+    setShowLogin(false);
     setStats(prev => ({ 
       ...prev, 
       currentUser: user,
@@ -583,10 +588,19 @@ const App: React.FC = () => {
   }
 
   if (!stats.currentUser) {
+    if (!showLogin) {
+      return (
+        <Onboarding
+          onGuest={() => handleAuthComplete(makeGuestUser())}
+          onSignIn={() => setShowLogin(true)}
+        />
+      );
+    }
     return (
-      <AuthModal 
+      <AuthModal
         isGated
         initialMode="login"
+        onBack={() => setShowLogin(false)}
         onAuthComplete={handleAuthComplete}
       />
     );
@@ -598,7 +612,7 @@ const App: React.FC = () => {
       <header className="fixed top-0 left-0 right-0 z-40 glass border-b border-slate-200/70 px-3 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-2 sm:gap-3.5">
           <div className="w-9 h-9 sm:w-11 sm:h-11 bg-gradient-to-br from-teal-500 to-teal-700 rounded-xl sm:rounded-2xl flex items-center justify-center text-white text-lg sm:text-2xl shadow-md shadow-teal-500/20 shrink-0">
-            👸
+            <ThandarMark className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div className="min-w-0">
             <h1 className="text-base sm:text-lg font-black tracking-tight leading-none text-slate-900 truncate">
@@ -763,86 +777,110 @@ const App: React.FC = () => {
             ) : (
               <p className="text-xs text-slate-500 mt-1 max-w-lg mx-auto">
                 {status === ConnectionStatus.ACTIVE
-                  ? 'မေးခွန်းကို နားထောင်ပြီး မိုက်ခရိုဖုန်းဖြင့် ဖြေဆိုပါ။ ဖြေပြီးပါက ၁၀ စက္ကန့် ငြိမ်နေလျှင် သန္တာက အကဲဖြတ်ပြီး ပိုကောင်းအောင် ဖြေနည်းကို အကြံပြုပေးပါမည်။'
-                  : 'အောက်တွင် လျှောက်ထားလိုသည့် အလုပ်အကိုင်ခလုတ်ကို ရွေးချယ်ပြီး START INTERVIEW ခလုတ်ကို နှိပ်ပါ။'}
+                  ? 'မေးခွန်းကို နားထောင်ပြီး မိုက်ခရိုဖုန်းဖြင့် ဖြေဆိုပါ။ ဖြေပြီးပါက ၅ စက္ကန့် ငြိမ်နေလျှင် သန္တာက အကဲဖြတ်ပြီး ပိုကောင်းအောင် ဖြေနည်းကို အကြံပြုပေးပါမည်။'
+                  : 'အောက်ပါ အဆင့် ၃ ဆင့်ဖြင့် စတင်ပါ။ (Follow the 3 steps below.)'}
               </p>
             )}
           </div>
 
-          {/* Interview language switch (locked while a session is running) */}
-          <div className="flex flex-col items-center gap-1.5 mt-3">
-            <span className="text-[11px] font-bold text-slate-500">အင်တာဗျူး ဘာသာစကား (Interview Language)</span>
-            <div role="radiogroup" aria-label="Interview language" className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
-              {([
-                { id: 'my', label: 'မြန်မာ' },
-                { id: 'en', label: 'English' },
-              ] as { id: InterviewLanguage; label: string }[]).map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={language === opt.id}
-                  disabled={status !== ConnectionStatus.IDLE}
-                  onClick={() => {
-                    setLanguage(opt.id);
-                    try { localStorage.setItem('thandar_language', opt.id); } catch {}
-                  }}
-                  className={`px-4 sm:px-5 py-1.5 rounded-lg text-xs font-black transition-all disabled:cursor-not-allowed ${
-                    language === opt.id
-                      ? 'bg-white text-teal-700 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800 disabled:hover:text-slate-500'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <span className="text-[11px] text-slate-400 text-center">
-              {language === 'en'
-                ? 'International / overseas job interview practice in English'
-                : 'မြန်မာဘာသာဖြင့် အင်တာဗျူး လေ့ကျင့်ပါ'}
-            </span>
-          </div>
+          {/* The 3 steps: field & position → language → start */}
+          <ol className="mt-4 mx-auto w-full max-w-lg space-y-3" aria-label="Interview setup">
+            <li className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl p-3">
+              <span className="w-8 h-8 shrink-0 rounded-full bg-teal-600 text-white text-sm font-black flex items-center justify-center" aria-hidden="true">1</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-slate-600">အလုပ်နယ်ပယ်နှင့် ရာထူး (Field & position)</p>
+                <p className="text-sm font-black text-slate-900 truncate" title={`${selectedRole.name} › ${interviewTarget.name}`}>
+                  {selectedRole.name.split(' (')[0]}{selectedPosition ? ` › ${selectedPosition.name}` : ''}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const el = document.getElementById('job-roles');
+                  el?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+                  el?.focus({ preventScroll: true });
+                }}
+                className="shrink-0 min-h-11 px-3 rounded-xl text-sm font-bold text-teal-700 hover:bg-teal-50 border border-teal-200 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-500/30"
+              >
+                ပြောင်းမည်<span className="hidden sm:inline"> (Change)</span>
+              </button>
+            </li>
 
-          {/* Start/Stop Main CTA */}
-          <div className="flex justify-center mt-3 sm:mt-4">
-            <button 
-              type="button"
-              onClick={status === ConnectionStatus.ACTIVE ? handleStop : () => handleStart()}
-              disabled={status === ConnectionStatus.CONNECTING}
-              className={`w-full sm:w-auto px-6 sm:px-10 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl font-black text-xs sm:text-sm text-white transition-all shadow-md active:scale-[0.99] flex items-center justify-center gap-2.5 ${
-                status === ConnectionStatus.ACTIVE 
-                  ? 'bg-rose-500 hover:bg-rose-600 shadow-rose-500/20' 
-                  : status === ConnectionStatus.CONNECTING 
-                  ? 'bg-slate-400 cursor-not-allowed'
-                  : 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/20'
-              }`}
-            >
-              {status === ConnectionStatus.ACTIVE ? (
-                <>
-                  <span className="w-2.5 h-2.5 bg-white rounded-sm animate-pulse" />
-                  <span>အင်တာဗျူး ရပ်တန့်မည် (STOP SESSION) 🛑</span>
-                </>
-              ) : status === ConnectionStatus.CONNECTING ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>ချိတ်ဆက်နေပါသည်...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                  </svg>
-                  <span>{selectedRole.name.split(' ')[0]} အင်တာဗျူး စတင်မည် (START) 🚀</span>
-                </>
-              )}
-            </button>
-          </div>
+            {/* Interview language switch (locked while a session is running) */}
+            <li className="flex flex-wrap items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl p-3">
+              <span className="w-8 h-8 shrink-0 rounded-full bg-teal-600 text-white text-sm font-black flex items-center justify-center" aria-hidden="true">2</span>
+              <div className="flex-1 min-w-[9rem]">
+                <p id="language-label" className="text-xs font-bold text-slate-600">ဘာသာစကား (Language)</p>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  {language === 'en' ? 'International / overseas job interviews' : 'မြန်မာဘာသာဖြင့် လေ့ကျင့်ပါ'}
+                </p>
+              </div>
+              <div role="radiogroup" aria-labelledby="language-label" className="inline-flex p-1 bg-white rounded-xl border border-slate-200">
+                {([
+                  { id: 'my', label: 'မြန်မာ' },
+                  { id: 'en', label: 'English' },
+                ] as { id: InterviewLanguage; label: string }[]).map(opt => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={language === opt.id}
+                    disabled={status !== ConnectionStatus.IDLE}
+                    onClick={() => {
+                      setLanguage(opt.id);
+                      try { localStorage.setItem('thandar_language', opt.id); } catch {}
+                    }}
+                    className={`min-h-10 px-4 rounded-lg text-sm font-bold transition-colors cursor-pointer disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/50 ${
+                      language === opt.id
+                        ? 'bg-teal-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 disabled:hover:text-slate-600'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </li>
+
+            {/* Start/Stop Main CTA */}
+            <li className="flex items-center gap-3">
+              <span className="w-8 h-8 shrink-0 rounded-full bg-teal-600 text-white text-sm font-black flex items-center justify-center" aria-hidden="true">3</span>
+              <button
+                type="button"
+                onClick={status === ConnectionStatus.ACTIVE ? handleStop : () => handleStart()}
+                disabled={status === ConnectionStatus.CONNECTING}
+                className={`flex-1 min-h-14 px-5 rounded-2xl font-black text-base text-white transition-colors shadow-md flex items-center justify-center gap-2.5 cursor-pointer focus-visible:outline-none focus-visible:ring-4 ${
+                  status === ConnectionStatus.ACTIVE
+                    ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20 focus-visible:ring-rose-500/40'
+                    : status === ConnectionStatus.CONNECTING
+                    ? 'bg-slate-400 cursor-wait'
+                    : 'bg-teal-600 hover:bg-teal-700 active:bg-teal-800 shadow-teal-600/25 focus-visible:ring-teal-500/40'
+                }`}
+              >
+                {status === ConnectionStatus.ACTIVE ? (
+                  <>
+                    <span className="w-3 h-3 bg-white rounded-sm motion-safe:animate-pulse" aria-hidden="true" />
+                    <span>အင်တာဗျူး ရပ်မည် (STOP)</span>
+                  </>
+                ) : status === ConnectionStatus.CONNECTING ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full motion-safe:animate-spin" aria-hidden="true" />
+                    <span>ချိတ်ဆက်နေပါသည်...</span>
+                  </>
+                ) : (
+                  <>
+                    <MicIcon className="w-5 h-5" />
+                    <span>အင်တာဗျူး စတင်မည် (START)</span>
+                  </>
+                )}
+              </button>
+            </li>
+          </ol>
 
         </section>
 
         {/* Separate Job Role Selector Buttons Section */}
-        <section className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200/80 p-4 sm:p-6 mb-4">
+        <section id="job-roles" tabIndex={-1} aria-label="Choose field and position" className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200/80 p-4 sm:p-6 mb-4 scroll-mt-24 focus:outline-none">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div>
               <h3 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
